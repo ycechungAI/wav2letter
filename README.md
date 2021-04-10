@@ -1,48 +1,44 @@
 # wav2letter++
 
 [![CircleCI](https://circleci.com/gh/facebookresearch/wav2letter.svg?style=svg)](https://circleci.com/gh/facebookresearch/wav2letter)
-[![](https://github.com/facebookresearch/wav2letter/workflows/Publish%20Docker%20images/badge.svg)](https://hub.docker.com/r/wav2letter/wav2letter/tags)
+[![Join the chat at https://gitter.im/wav2letter/community](https://badges.gitter.im/wav2letter/community.svg)](https://gitter.im/wav2letter/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-wav2letter++ is a fast, open source speech processing toolkit from the Speech team at Facebook AI Research built to facilitate research in end-to-end models for speech recognition. It is written entirely in C++ and uses the [ArrayFire](https://github.com/arrayfire/arrayfire) tensor library and the [flashlight](https://github.com/facebookresearch/flashlight) machine learning library for maximum efficiency. Our approach is detailed in this [arXiv paper](https://arxiv.org/abs/1812.07625).
+## Important Note:
+### wav2letter has been moved and consolidated [into Flashlight](https://github.com/facebookresearch/flashlight) in the [ASR application](https://github.com/facebookresearch/flashlight/tree/master/flashlight/app/asr).
 
-This repository also contains **pre-trained** models and implementations for various ASR results including:
-- [NEW] [Pratap et al. (2020): Scaling Online Speech Recognition Using ConvNets](recipes/models/streaming_convnets/)
-- [NEW SOTA] [Synnaeve et al. (2019): End-to-end ASR: from Supervised to Semi-Supervised Learning with Modern Architectures](recipes/models/sota/2019)
-- [Likhomanenko et al. (2019): Who Needs Words? Lexicon-free Speech Recognition](recipes/models/lexicon_free/)
-- [Hannun et al. (2019): Sequence-to-Sequence Speech Recognition with Time-Depth Separable Convolutions](recipes/models/seq2seq_tds/)
+Future wav2letter development will occur in Flashlight.
 
-The previous iteration of wav2letter (written in Lua) can be found in the [`wav2letter-lua`](https://github.com/facebookresearch/wav2letter/tree/wav2letter-lua) branch.
+*To build the old, pre-consolidation version of wav2letter*, checkout the [wav2letter v0.2](https://github.com/facebookresearch/wav2letter/releases/tag/v0.2) release, which depends on the old [Flashlight v0.2](https://github.com/facebookresearch/flashlight/releases/tag/v0.2) release. The [`wav2letter-lua`](https://github.com/facebookresearch/wav2letter/tree/wav2letter-lua) project can be found on the [`wav2letter-lua` branch](https://github.com/facebookresearch/wav2letter/tree/wav2letter-lua), accordingly.
 
-## Building wav2letter++ and full documentation
-All details and documentation can be found on the [wiki](https://github.com/facebookresearch/wav2letter/wiki).
+For more information on wav2letter++, see or cite [this arXiv paper](https://arxiv.org/abs/1812.07625).
 
-To get started with wav2letter++, checkout the [tutorials](tutorials) section.
+## Recipes
+This repository includes recipes to reproduce the following research papers as well as **pre-trained** models:
+- [Pratap et al. (2020): Scaling Online Speech Recognition Using ConvNets](recipes/streaming_convnets/)
+- [Synnaeve et al. (2020): End-to-end ASR: from Supervised to Semi-Supervised Learning with Modern Architectures](recipes/sota/2019)
+- [Kahn et al. (2020): Self-Training for End-to-End Speech Recognition](recipes/self_training)
+- [Likhomanenko et al. (2019): Who Needs Words? Lexicon-free Speech Recognition](recipes/lexicon_free/)
+- [Hannun et al. (2019): Sequence-to-Sequence Speech Recognition with Time-Depth Separable Convolutions](recipes/seq2seq_tds/)
 
-We also provide complete recipes for WSJ, Timit and Librispeech and they can be found in [recipes](recipes) folder.
+Data preparation for training and evaluation can be found in [data](data) directory.
 
-Finally, we provide [Python bindings](bindings/python) for a subset of wav2letter++ (featurization, decoder, and ASG criterion) and a standalone [inference framework](inference) for running online ASR.
+### Building the Recipes
 
-## Citation
-
-If you use the code in your paper, then please cite it as:
-
+First, install [Flashlight](https://github.com/facebookresearch/flashlight) with the [ASR application](https://github.com/facebookresearch/flashlight/tree/master/flashlight/app/asr). Then, after cloning the project source:
+```shell
+mkdir build && cd build
+cmake .. && make -j8
 ```
-@article{pratap2018w2l,
-  author          = {Vineel Pratap, Awni Hannun, Qiantong Xu, Jeff Cai, Jacob Kahn, Gabriel Synnaeve, Vitaliy Liptchinsky, Ronan Collobert},
-  title           = {wav2letter++: The Fastest Open-source Speech Recognition System},
-  journal         = {CoRR},
-  volume          = {abs/1812.07625},
-  year            = {2018},
-  url             = {https://arxiv.org/abs/1812.07625},
-}
+If Flashlight or ArrayFire are installed in nonstandard paths via a custom `CMAKE_INSTALL_PREFIX`, they can be found by passing
+```shell
+-Dflashlight_DIR=[PREFIX]/usr/share/flashlight/cmake/ -DArrayFire_DIR=[PREFIX]/usr/share/ArrayFire/cmake
 ```
+when running `cmake`.
 
 ## Join the wav2letter community
 * Facebook page: https://www.facebook.com/groups/717232008481207/
 * Google group: https://groups.google.com/forum/#!forum/wav2letter-users
-* Contact: vineelkpratap@fb.com, awni@fb.com, qiantong@fb.com, jcai@fb.com, jacobkahn@fb.com, gab@fb.com, vitaliy888@fb.com, locronan@fb.com
-
-See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
+* Contact: vineelkpratap@fb.com, awni@fb.com, qiantong@fb.com, jacobkahn@fb.com, antares@fb.com, avidov@fb.com, gab@fb.com, vitaliy888@fb.com, locronan@fb.com
 
 ## License
 wav2letter++ is BSD-licensed, as found in the [LICENSE](LICENSE) file.
