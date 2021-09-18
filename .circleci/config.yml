@@ -53,17 +53,18 @@ commands:
             sudo docker exec -it wav2letter bash -c "\
             echo 'deb http://archive.ubuntu.com/ubuntu xenial main' | tee /etc/apt/sources.list.d/xenial.list && \
             apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends software-properties-common && \
-            apt-add-repository -r universe && apt-get update && \
-            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc-5 g++-5 && \
-            export CC=/usr/bin/gcc-5 && export CXX=/usr/bin/g++-5 && \
+            apt-add-repository -r universe && apt-add-repository 'deb http://dk.archive.ubuntu.com/ubuntu/ bionic main' && apt-add-repository 'deb http://dk.archive.ubuntu.com/ubuntu/ bionic universe' && apt-get update && \
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc-7 g++-7 && \
+            update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 7 &&\
+            update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-7 7 && \
             wget https://cmake.org/files/v<< parameters.version >>/cmake-<< parameters.version >>.<< parameters.version_build >>-Linux-x86_64.sh && \
             mkdir /opt/cmake && \
             sh cmake-<< parameters.version >>.<< parameters.version_build >>-Linux-x86_64.sh --prefix=/opt/cmake --skip-license && \
             ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake && \
-            git clone https://github.com/facebookresearch/flashlight.git && \
+            git clone https://github.com/flashlight/flashlight.git && \
             cd /flashlight && pwd && ls && mkdir -p build && cd build && \
             export MKLROOT=/opt/intel/mkl && \
-            cmake .. -DFL_BACKEND=CUDA -DFL_BUILD_TESTS=OFF -DFL_BUILD_EXAMPLES=OFF && \
+            cmake .. -DFL_BACKEND=CUDA -DFL_BUILD_TESTS=OFF -DFL_BUILD_EXAMPLES=OFF -DFL_BUILD_APP_ASR=ON && \
             make -j$(nproc) && make install && \
             cd /wav2letter && mkdir build && cd build && cmake .. && make -j$(nproc)"
 
