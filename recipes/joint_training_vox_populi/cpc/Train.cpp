@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+#include <fmt/core.h>
 #include <cstdlib>
 #include <fstream>
 #include <random>
@@ -16,6 +17,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "flashlight/fl/autograd/Variable.h"
+#include "flashlight/fl/common/Logging.h"
 #include "flashlight/fl/contrib/contrib.h"
 #include "flashlight/fl/flashlight.h"
 #include "flashlight/pkg/runtime/Runtime.h"
@@ -35,6 +38,7 @@
 
 #include "CPCCriterion.h"
 #include "CPCSpecAugment.h"
+#include "MTLLoss.h"
 #include "SequentialBuilder.h"
 
 // extra optimization hyperparameters
@@ -195,6 +199,9 @@ DEFINE_double(
     0.,
     "Probability of same masked tokens in CPC");
 
+DECLARE_double(mtllossweight);
+DECLARE_string(mtllossmapping);
+
 using fl::lib::fileExists;
 using fl::lib::format;
 using fl::lib::getCurrentDate;
@@ -210,6 +217,8 @@ using namespace fl::lib;
 using namespace fl::lib::text;
 using namespace fl::lib::audio;
 using namespace w2l;
+
+typedef std::map<std::string, unsigned int> Mapping;
 
 int main(int argc, char** argv) {
   fl::init();
@@ -325,12 +334,6 @@ int main(int argc, char** argv) {
   }
 
   fl::VerboseLogging::setMaxLoggingLevel(FLAGS_fl_vlog_level);
-  // auto deviceInterface =
-  // std::make_shared<fl::MemoryManagerDeviceInterface>();
-  // auto adapter = std::make_shared<fl::CachingMemoryManager>(
-  //    af::getDeviceCount(), deviceInterface);
-  // auto installer = fl::cpp::make_unique<fl::MemoryManagerInstaller>(adapter);
-  // installer->setAsMemoryManager();
 
   af::setSeed(FLAGS_seed);
   af::setFFTPlanCacheSize(FLAGS_fftcachesize);
@@ -436,6 +439,7 @@ int main(int argc, char** argv) {
   std::shared_ptr<fl::Sequential> network;
   std::shared_ptr<fl::Sequential> _network;
   std::shared_ptr<fl::Sequential> _feat_network;
+  std::shared_ptr<fl::Linear> mtl_classifier;
   // unsupervised criterion
   std::shared_ptr<SequenceCriterion> criterion;
   // supervised criterion (all variables ending with 2 are supervised)
@@ -444,8 +448,10 @@ int main(int argc, char** argv) {
   std::shared_ptr<fl::FirstOrderOptimizer> netoptim2;
   std::shared_ptr<fl::FirstOrderOptimizer> critoptim;
   std::shared_ptr<fl::FirstOrderOptimizer> critoptim2;
+  std::shared_ptr<fl::FirstOrderOptimizer> mtloptim;
   std::unordered_map<std::string, std::string> cfg;
   std::unordered_map<std::string, std::string> _cfg;
+  std::map<std::string, unsigned int> mtl_mapping;
 
   FL_LOG(fl::INFO) << "SAUG";
   auto saug = std::make_shared<w2l::CPCSpecAugment>(
@@ -496,8 +502,9 @@ int main(int argc, char** argv) {
       FL_LOG(fl::INFO) << "[Criterion] " << criterion->prettyString();
     } else {
       FL_LOG(fl::INFO) << "Loading architecture file from " << archfiles[0];
-      network->add(w2l::cpc::buildSequentialModule(
-          archfiles[0], numFeatures, FLAGS_codedim));
+      network->add(
+          w2l::cpc::buildSequentialModule(
+              archfiles[0], numFeatures, FLAGS_codedim));
       // 2 extra layers between encoder and context in order to perform
       // operations on
       // intermediate activations
@@ -505,12 +512,14 @@ int main(int argc, char** argv) {
       network->add(
           std::make_shared<fl::Linear>(FLAGS_codedim, FLAGS_contextdim));
       FL_LOG(fl::INFO) << "Loading architecture file from " << archfiles[1];
-      network->add(w2l::cpc::buildSequentialModule(
-          archfiles[1], FLAGS_contextdim, FLAGS_contextdim));
+      network->add(
+          w2l::cpc::buildSequentialModule(
+              archfiles[1], FLAGS_contextdim, FLAGS_contextdim));
     }
     FL_LOG(fl::INFO) << "Loading architecture file from " << archfiles[2];
-    network->add(w2l::cpc::buildSequentialModule(
-        archfiles[2], FLAGS_contextdim, numClasses));
+    network->add(
+        w2l::cpc::buildSequentialModule(
+            archfiles[2], FLAGS_contextdim, numClasses));
 
     if (FLAGS_criterion2 == kCtcCriterion) {
       criterion2 = std::make_shared<CTCLoss>(scalemode);
@@ -588,6 +597,24 @@ int main(int argc, char** argv) {
     validminerrs[s.first] = DBL_MAX;
   }
   std::unordered_map<std::string, double> validWerWithDecoder;
+
+  /* =========== Create MTLLoss module ==================================== */
+  if (!FLAGS_mtllossmapping.empty()) {
+    FL_LOG(fl::INFO) << "Building the MTL Loss";
+    FL_LOG(fl::INFO) << "Loading " << FLAGS_mtllossmapping;
+    mtl_mapping = asr4real::loadMapping(FLAGS_mtllossmapping);
+    const int n_categories = mtl_mapping.size();
+
+    mtl_classifier =
+        std::make_shared<fl::Linear>(FLAGS_contextdim, n_categories);
+
+    // TODO : update
+    mtloptim = initOptimizer(
+        {mtl_classifier}, FLAGS_critoptim, FLAGS_lrcrit, 0.0, 0.0);
+
+    FL_LOG(fl::INFO) << "[MTL Classifier] " << mtl_classifier->prettyString();
+    FL_LOG(fl::INFO) << "[MTL Optimizer] " << mtloptim->prettyString();
+  }
 
   /* ===================== Logging ===================== */
   std::ofstream logFile;
@@ -993,12 +1020,15 @@ int main(int argc, char** argv) {
                 &shuffleds,
                 &scaleFactors,
                 &scaleCounters,
+                &mtl_mapping,
                 reducer](
                    std::shared_ptr<fl::Sequential> ntwrk,
                    std::shared_ptr<SequenceCriterion> crit,
                    std::shared_ptr<fl::Dataset> trainset,
                    std::shared_ptr<fl::FirstOrderOptimizer> netopt,
                    std::shared_ptr<fl::FirstOrderOptimizer> critopt,
+                   std::shared_ptr<fl::Linear> mtlpredictor,
+                   std::shared_ptr<fl::FirstOrderOptimizer> mtloptim,
                    TrainMeters& mtrs,
                    double initlr,
                    double initcritlr,
@@ -1157,6 +1187,18 @@ int main(int argc, char** argv) {
         af::sync();
         mtrs.critfwdtimer.resume();
         auto loss = crit->forward(crit_input).front();
+
+        if (mtlpredictor) {
+          mtlpredictor->train();
+          mtloptim->zeroGrad();
+          fl::Variable mtl_loss = asr4real::mtl_step(
+              context_mask,
+              mtlpredictor,
+              shuffleds[trainIdx],
+              mtl_mapping,
+              batchIdx);
+          loss = loss + FLAGS_mtllossweight * mtl_loss;
+        }
         // add l2 encoder output penalty term in unsupervised loss
         if (pretrain) {
           loss = loss + FLAGS_l2_enc_pen * l2_enc_out;
@@ -1259,9 +1301,8 @@ int main(int argc, char** argv) {
               if (scaleFactor >= kMinScaleFactor) {
                 scaleFactor = scaleFactor / 2.0f;
                 FL_VLOG(2) << "AMP: Scale factor decreased. New value:\t"
-                           << "gradidx " << gradIdx << "\t"
-                           << "grad dims " << p.grad().dims() << "\t"
-                           << scaleFactor;
+                           << "gradidx " << gradIdx << "\t" << "grad dims "
+                           << p.grad().dims() << "\t" << scaleFactor;
                 retrySample = true;
                 scaleCounter = 1;
                 break;
@@ -1318,6 +1359,9 @@ int main(int argc, char** argv) {
       if (lrScale > 0) {
         critopt->step();
         netopt->step();
+      }
+      if (lrScale > 0 && mtlpredictor) {
+        mtloptim->step();
       }
       af::sync();
       mtrs.optimtimer.stopAndIncUnit();
@@ -1391,7 +1435,7 @@ int main(int argc, char** argv) {
   // supStartBatch is number of updates of supervised loss
   // unsupStartBatch is number of updates of unsupervised loss
   startBatch = unsupStartBatch + supStartBatch;
-  printf("unsup: %ld, sup: %ld\n", unsupStartBatch, supStartBatch);
+  fmt::print("unsup: {}, sup: {}\n", unsupStartBatch, supStartBatch);
 
   resetTimeStatMeters(meters);
   resetTimeStatMeters(meters2);
@@ -1410,6 +1454,8 @@ int main(int argc, char** argv) {
           trainds,
           netoptim,
           critoptim,
+          mtl_classifier,
+          mtloptim,
           meters,
           FLAGS_lr,
           FLAGS_lrcrit,
@@ -1430,6 +1476,8 @@ int main(int argc, char** argv) {
           trainds2,
           netoptim2,
           critoptim2,
+          mtl_classifier,
+          mtloptim,
           meters2,
           FLAGS_lr2,
           FLAGS_lrcrit2,

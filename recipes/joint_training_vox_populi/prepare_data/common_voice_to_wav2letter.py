@@ -2,15 +2,16 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-import csv
 import argparse
-import torch
-import torchaudio
+import csv
 import string
-from tqdm import tqdm
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
-from lst_utils import FileInfo, save_lst, get_speakers_list
+
+import torch
+import torchaudio
+from lst_utils import FileInfo, get_speakers_list, save_lst
+from tqdm import tqdm
 
 
 PUNCTUATION = (string.punctuation + "¡¿").replace("'", "").replace("-", "")
@@ -45,7 +46,6 @@ def to_wav2letterFormat(data: torch.tensor, sr: int) -> torch.tensor:
 
 
 def get_base_data_from_csv(pathTSV) -> List[Dict[str, str]]:
-
     out = []
     with open(pathTSV, "r", encoding="utf-8") as tsvfile:
         reader = csv.DictReader(tsvfile, dialect="excel-tab")
@@ -63,7 +63,6 @@ def norm_text(
     replace_set: Optional[Dict[str, str]] = None,
     del_set: Optional[Set[str]] = None,
 ) -> Tuple[bool, str]:
-
     text = text.lower()
     if replace_set is not None:
         for char_, val in replace_set.items():
@@ -97,7 +96,6 @@ def get_full_audio_data(
     del_set: Optional[Set[str]] = None,
     file_extension: str = None,
 ) -> List[FileInfo]:
-
     output = []
     for audio_data in tqdm(base_data, total=len(base_data)):
         path_audio = path_dir_audio / audio_data["local_path"]
@@ -129,7 +127,6 @@ def get_full_audio_data(
 def convert_audio_data(
     input_list: List[FileInfo], out_dir_audio: Path
 ) -> List[FileInfo]:
-
     out_dir_audio.mkdir(exist_ok=True)
     output = []
     for file_info in tqdm(input_list, total=len(input_list)):
@@ -152,13 +149,11 @@ def convert_audio_data(
 
 
 def load_filter(path_filter: Path) -> List[str]:
-
     with open(path_filter, "r") as f:
         return [x.strip() for x in f.readlines()]
 
 
 def filter_data_by_id(input_lst: List[FileInfo], to_filter: List[str]):
-
     input_lst.sort(key=lambda x: x.id_)
     to_filter.sort()
 
@@ -182,7 +177,6 @@ def filter_data_by_id(input_lst: List[FileInfo], to_filter: List[str]):
 
 
 def main(args):
-
     letters = load_letters(Path(args.path_tokens))
     data = get_base_data_from_csv(Path(args.path_tsv))
     audio_data = get_full_audio_data(
@@ -206,7 +200,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description="Build the lst input files for common voices datasets"
     )

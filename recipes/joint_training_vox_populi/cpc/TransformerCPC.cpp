@@ -7,10 +7,14 @@
 
 #include "TransformerCPC.h"
 
+#include <arrayfire.h>
+
 #include "flashlight/fl/autograd/Functions.h"
 #include "flashlight/fl/contrib/modules/Transformer.h"
 #include "flashlight/fl/nn/Init.h"
 #include "flashlight/fl/nn/Utils.h"
+
+#include <cmath>
 
 namespace {
 fl::Variable
@@ -68,9 +72,10 @@ TransformerCPC::TransformerCPC(
           transformerInitLinearBias(headDim * nHeads, modelDim, true))),
       norm1_(
           std::make_shared<LayerNorm>(std::vector<int>({0, 3}), layerNormEps_)),
-      norm2_(std::make_shared<LayerNorm>(
-          std::vector<int>({0, 3}),
-          layerNormEps_)) {
+      norm2_(
+          std::make_shared<LayerNorm>(
+              std::vector<int>({0, 3}),
+              layerNormEps_)) {
   if (bptt > 0) {
     params_.push_back(
         uniform(2 * bptt - 1, headDim, -0.1, 0.1, af::dtype::f32, true));
@@ -174,11 +179,9 @@ std::vector<Variable> TransformerCPC::forward(
 std::string TransformerCPC::prettyString() const {
   std::ostringstream ss;
   ss << "Transformer (nHeads: " << nHeads_ << "), "
-     << "(pDropout: " << pDropout_ << "), "
-     << "(pLayerdrop: " << pLayerdrop_ << "), "
-     << "(bptt: " << bptt_ << "), "
-     << "(useMask: " << useMask_ << "), "
-     << "(preLayerNorm: " << preLN_ << ")";
+     << "(pDropout: " << pDropout_ << "), " << "(pLayerdrop: " << pLayerdrop_
+     << "), " << "(bptt: " << bptt_ << "), " << "(useMask: " << useMask_
+     << "), " << "(preLayerNorm: " << preLN_ << ")";
   return ss.str();
 }
 

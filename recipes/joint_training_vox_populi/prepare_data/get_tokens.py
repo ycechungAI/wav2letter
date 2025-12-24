@@ -2,9 +2,10 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-from common_voice_to_wav2letter import get_base_data_from_csv, PUNCTUATION
-from typing import List, Set
 import argparse
+from typing import List, Set
+
+from common_voice_to_wav2letter import get_base_data_from_csv, PUNCTUATION
 
 REPLACE_SET = {"–": "-", "`": "'", "’": "'"}
 
@@ -17,7 +18,6 @@ def get_tokens_from_str(str_in) -> Set[str]:
 
 
 def get_tokens_from_str_list(list_str: List[str]) -> Set[str]:
-
     out = set()
     for str_in in list_str:
         out = out.union(get_tokens_from_str(str_in))
@@ -26,7 +26,6 @@ def get_tokens_from_str_list(list_str: List[str]) -> Set[str]:
 
 
 def save_tokens(tokens, path_out, eow_token="|") -> None:
-
     with open(path_out, "w") as f:
         for x in tokens:
             f.write(x + "\n")
@@ -34,7 +33,6 @@ def save_tokens(tokens, path_out, eow_token="|") -> None:
 
 
 def main(args):
-
     data = get_base_data_from_csv(args.input_csv)
     all_tokens = get_tokens_from_str_list([x["text"] for x in data])
 
@@ -47,7 +45,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser("Token builder")
     parser.add_argument("input_csv")
     parser.add_argument("output")
